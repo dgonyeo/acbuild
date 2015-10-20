@@ -84,7 +84,7 @@ func (a *ACBuild) Run(cmd []string, insecure bool) (err error) {
 		}
 	}
 
-	deps, err := a.renderACI(insecure, a.Debug)
+	deps, err := a.renderACI(insecure)
 	if err != nil {
 		return err
 	}
@@ -178,12 +178,12 @@ func findCmdInPath(pathlist []string, cmd, prefix string) (string, error) {
 	return "", fmt.Errorf("%s not found in any of: %v", cmd, pathlist)
 }
 
-func (a *ACBuild) renderACI(insecure, debug bool) ([]string, error) {
+func (a *ACBuild) renderACI(insecure bool) ([]string, error) {
 	reg := registry.Registry{
 		DepStoreTarPath:      a.DepStoreTarPath,
 		DepStoreExpandedPath: a.DepStoreExpandedPath,
 		Insecure:             insecure,
-		Debug:                debug,
+		Debug:                a.Debug,
 	}
 
 	man, err := util.GetManifest(a.CurrentACIPath)
