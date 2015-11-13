@@ -23,10 +23,11 @@ import (
 )
 
 var (
-	imageId string
-	labels  labellist
-	size    uint
-	cmdDep  = &cobra.Command{
+	addDepImageId  string
+	addDepLabels   labellist
+	addDepSize     uint
+	addDepInsecure bool
+	cmdDep         = &cobra.Command{
 		Use:   "dependency [command]",
 		Short: "Manage dependencies",
 	}
@@ -52,9 +53,10 @@ func init() {
 	cmdDep.AddCommand(cmdAddDep)
 	cmdDep.AddCommand(cmdRmDep)
 
-	cmdAddDep.Flags().StringVar(&imageId, "image-id", "", "Content hash of the dependency")
-	cmdAddDep.Flags().Var(&labels, "label", "Labels used for dependency matching")
-	cmdAddDep.Flags().UintVar(&size, "size", 0, "The size of the image of the referenced dependency, in bytes")
+	cmdAddDep.Flags().StringVar(&addDepImageId, "image-id", "", "Content hash of the dependency")
+	cmdAddDep.Flags().Var(&addDepLabels, "label", "Labels used for dependency matching")
+	cmdAddDep.Flags().UintVar(&addDepSize, "size", 0, "The size of the image of the referenced dependency, in bytes")
+	cmdAddDep.Flags().BoolVar(&addDepInsecure, "insecure", false, "Allows fetching dependencies over http")
 }
 
 func runAddDep(cmd *cobra.Command, args []string) (exit int) {
@@ -71,8 +73,8 @@ func runAddDep(cmd *cobra.Command, args []string) (exit int) {
 		stderr("Adding dependency %q", args[0])
 	}
 
-	err := newACBuild().AddDependency(args[0], imageId,
-		types.Labels(labels), size)
+	err := newACBuild().AddDependency(args[0], addDepImageId,
+		types.Labels(addDepLabels), addDepSize, addDepInsecure)
 
 	if err != nil {
 		stderr("dependency add: %v", err)

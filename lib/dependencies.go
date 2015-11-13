@@ -15,10 +15,20 @@
 package lib
 
 import (
-	"github.com/appc/acbuild/util"
+	"archive/tar"
+	"encoding/json"
+	"fmt"
+	"io"
+	"io/ioutil"
+	"os"
+	"path"
 
+	"github.com/appc/acbuild/Godeps/_workspace/src/github.com/appc/spec/aci"
 	"github.com/appc/acbuild/Godeps/_workspace/src/github.com/appc/spec/schema"
 	"github.com/appc/acbuild/Godeps/_workspace/src/github.com/appc/spec/schema/types"
+
+	"github.com/appc/acbuild/registry"
+	"github.com/appc/acbuild/util"
 )
 
 func removeDep(imageName types.ACIdentifier) func(*schema.ImageManifest) error {
@@ -42,7 +52,7 @@ func removeDep(imageName types.ACIdentifier) func(*schema.ImageManifest) error {
 // AddDependency will add a dependency with the given name, id, labels, and size
 // to the untarred ACI stored at a.CurrentACIPath. If the dependency already
 // exists its fields will be updated to the new values.
-func (a *ACBuild) AddDependency(imageName, imageId string, labels types.Labels, size uint) (err error) {
+func (a *ACBuild) AddDependency(imageName, imageId string, labels types.Labels, size uint, insecure bool) (err error) {
 	if err = a.lock(); err != nil {
 		return err
 	}
@@ -52,7 +62,31 @@ func (a *ACBuild) AddDependency(imageName, imageId string, labels types.Labels, 
 		}
 	}()
 
+	err = os.MkdirAll(a.DepStoreTarPath, 0755)
+	if err != nil {
+		return err
+	}
+
+	// Fetch the image, to be able to merge its path whitelist with the current
+	// ACI
+	reg := registry.Registry{
+		DepStoreTarPath:      a.DepStoreTarPath,
+		DepStoreExpandedPath: a.DepStoreExpandedPath,
+		Insecure:             insecure,
+		Debug:                a.Debug,
+	}
+
 	acid, err := types.NewACIdentifier(imageName)
+	if err != nil {
+		return err
+	}
+
+	id, err := reg.Fetch(*acid, labels, size, false)
+	if err != nil {
+		return err
+	}
+
+	depManifest, err := getManifestFromTar(path.Join(a.DepStoreTarPath, id))
 	if err != nil {
 		return err
 	}
@@ -75,6 +109,9 @@ func (a *ACBuild) AddDependency(imageName, imageId string, labels types.Labels, 
 				Labels:    labels,
 				Size:      size,
 			})
+		if len(depManifest.PathWhitelist) != 0 {
+			s.PathWhitelist = append(s.PathWhitelist, depManifest.PathWhitelist...)
+		}
 		return nil
 	}
 	return util.ModifyManifest(fn, a.CurrentACIPath)
@@ -98,4 +135,42 @@ func (a *ACBuild) RemoveDependency(imageName string) (err error) {
 	}
 
 	return util.ModifyManifest(removeDep(*acid), a.CurrentACIPath)
+}
+
+func getManifestFromTar(tarpath string) (*schema.ImageManifest, error) {
+	tarfile, err := os.Open(tarpath)
+	if err != nil {
+		return nil, err
+	}
+	defer tarfile.Close()
+
+	tr := tar.NewReader(tarfile)
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			// End of tar reached
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		switch {
+		case hdr.Typeflag == tar.TypeReg:
+			if hdr.Name == aci.ManifestFile {
+				manblob, err := ioutil.ReadAll(tr)
+				if err != nil {
+					return nil, err
+				}
+				man := &schema.ImageManifest{}
+				err = json.Unmarshal(manblob, man)
+				if err != nil {
+					return nil, err
+				}
+				return man, nil
+			}
+		default:
+			continue
+		}
+	}
+	return nil, fmt.Errorf("manifest not found in ACI")
 }

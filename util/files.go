@@ -74,3 +74,8 @@ func ExtractImage(path, dst string, fileMap map[string]struct{}) error {
 	}
 	return rkttar.ExtractTarInsecure(tar.NewReader(dr), dst, true, fileMap, editor)
 }
+
+func GenerateFileList(path string) ([]string, error) {
+	walkFn := func(path string, info os.FileInfo, err error) error {
+	}
+}

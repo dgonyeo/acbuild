@@ -26,9 +26,11 @@ import (
 	"syscall"
 
 	"github.com/appc/acbuild/Godeps/_workspace/src/github.com/appc/spec/aci"
+	"github.com/appc/acbuild/Godeps/_workspace/src/github.com/appc/spec/schema"
 
 	"github.com/appc/acbuild/registry"
 	"github.com/appc/acbuild/util"
+	"github.com/appc/acbuild/util/fsdiffer"
 )
 
 var pathlist = []string{"/usr/local/sbin", "/usr/local/bin", "/usr/sbin",
@@ -143,6 +145,11 @@ func (a *ACBuild) Run(cmd []string, insecure bool) (err error) {
 	nspawncmd = append(nspawncmd, abscmd)
 	nspawncmd = append(nspawncmd, cmd[1:]...)
 
+	differ, err := fsdiffer.NewTemporalFSDiffer(a.OverlayTargetPath)
+	if err != nil {
+		return err
+	}
+
 	execCmd := exec.Command(nspawncmd[0], nspawncmd[1:]...)
 	execCmd.Stdin = os.Stdin
 	execCmd.Stdout = os.Stdout
@@ -157,7 +164,43 @@ func (a *ACBuild) Run(cmd []string, insecure bool) (err error) {
 		return err
 	}
 
-	return nil
+	changes, err := differ.Diff()
+	if err != nil {
+		return err
+	}
+
+	fn := func(s *schema.ImageManifest) error {
+		createdWhitelist := false
+		if len(s.PathWhitelist) == 0 {
+			var err error
+			s.PathWhitelist, err = util.GenerateFileList(path.Join(a.CurrentACIPath, aci.RootfsDir))
+			if err != nil {
+				return err
+			}
+			createdWhitelist = true
+		}
+
+		for _, change := range changes {
+			if change.ChangeType == fsdiffer.Added {
+				fmt.Printf("Adding: %q\n", change.Path)
+				s.PathWhitelist = append(s.PathWhitelist, change.Path)
+			}
+			if createdWhitelist && change.ChangeType == fsdiffer.Deleted {
+				fmt.Printf("Deleting: %q\n", change.Path)
+				deleteFromList(change.Path, s.PathWhitelist)
+			}
+		}
+		return nil
+	}
+	return util.ModifyManifest(fn, a.CurrentACIPath)
+}
+
+func deleteFromList(elem string, list []string) {
+	for i := len(list) - 1; i >= 0; i-- {
+		if list[i] == elem {
+			list = append(list[:i], list[i+1:]...)
+		}
+	}
 }
 
 // stolen from github.com/coreos/rkt/common/common.go

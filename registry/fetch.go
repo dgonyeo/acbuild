@@ -48,23 +48,23 @@ func (r Registry) tmpuncompressedpath() string {
 
 // Fetch will download the given image, and optionally its dependencies, into
 // r.DepStoreTarPath
-func (r Registry) Fetch(imagename types.ACIdentifier, labels types.Labels, size uint, fetchDeps bool) error {
-	_, err := r.GetACI(imagename, labels)
+func (r Registry) Fetch(imagename types.ACIdentifier, labels types.Labels, size uint, fetchDeps bool) (string, error) {
+	id, err := r.GetACI(imagename, labels)
 	if err == ErrNotFound {
-		err := r.fetchACIWithSize(imagename, labels, size, fetchDeps)
+		id, err := r.fetchACIWithSize(imagename, labels, size, fetchDeps)
 		if err != nil {
-			return err
+			return "", err
 		}
-		return nil
+		return id, nil
 	}
-	return err
+	return id, err
 }
 
 // FetchAndRender will fetch the given image and all of its dependencies if
 // they have not been fetched yet, and will then render them on to the
 // filesystem if they have not been rendered yet.
 func (r Registry) FetchAndRender(imagename types.ACIdentifier, labels types.Labels, size uint) error {
-	err := r.Fetch(imagename, labels, size, true)
+	_, err := r.Fetch(imagename, labels, size, true)
 	if err != nil {
 		return err
 	}
@@ -104,15 +104,15 @@ filesloop:
 	return nil
 }
 
-func (r Registry) fetchACIWithSize(imagename types.ACIdentifier, labels types.Labels, size uint, fetchDeps bool) error {
+func (r Registry) fetchACIWithSize(imagename types.ACIdentifier, labels types.Labels, size uint, fetchDeps bool) (string, error) {
 	endpoint, err := r.discoverEndpoint(imagename, labels)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	err = r.download(endpoint.ACI, r.tmppath(), string(imagename))
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	//TODO: download .asc, verify the .aci with it
@@ -120,10 +120,10 @@ func (r Registry) fetchACIWithSize(imagename types.ACIdentifier, labels types.La
 	if size != 0 {
 		finfo, err := os.Stat(r.tmppath())
 		if err != nil {
-			return err
+			return "", err
 		}
 		if finfo.Size() != int64(size) {
-			return fmt.Errorf(
+			return "", fmt.Errorf(
 				"dependency %s has incorrect size: expected=%d, actual=%d",
 				size, finfo.Size())
 		}
@@ -131,68 +131,68 @@ func (r Registry) fetchACIWithSize(imagename types.ACIdentifier, labels types.La
 
 	err = r.uncompress()
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	err = os.Remove(r.tmppath())
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	id, err := GenImageID(r.tmpuncompressedpath())
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	err = os.Rename(r.tmpuncompressedpath(), path.Join(r.DepStoreTarPath, id))
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	if !fetchDeps {
-		return nil
+		return id, nil
 	}
 
 	err = os.MkdirAll(
 		path.Join(r.DepStoreExpandedPath, id, aci.RootfsDir), 0755)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	err = getManifestFromTar(path.Join(r.DepStoreTarPath, id),
 		path.Join(r.DepStoreExpandedPath, id, aci.ManifestFile))
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	man, err := r.GetImageManifest(id)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	if man.Name != imagename {
-		return fmt.Errorf(
+		return "", fmt.Errorf(
 			"downloaded ACI name %q does not match expected image name %q",
 			man.Name, imagename)
 	}
 
 	for _, dep := range man.Dependencies {
-		err := r.fetchACIWithSize(dep.ImageName, dep.Labels, dep.Size, fetchDeps)
+		_, err := r.fetchACIWithSize(dep.ImageName, dep.Labels, dep.Size, fetchDeps)
 		if err != nil {
-			return err
+			return "", err
 		}
 		if dep.ImageID != nil {
 			id, err := r.GetACI(dep.ImageName, dep.Labels)
 			if err != nil {
-				return err
+				return "", err
 			}
 			if id != dep.ImageID.String() {
-				return fmt.Errorf("dependency %s doesn't match hash",
+				return "", fmt.Errorf("dependency %s doesn't match hash",
 					dep.ImageName)
 			}
 		}
 	}
-	return nil
+	return id, nil
 }
 
 // Need to uncompress the file to be able to generate the Image ID

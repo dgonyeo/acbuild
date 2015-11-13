@@ -172,26 +172,19 @@ func (a *ACBuild) beginFromRemoteImage(start string, insecure bool) error {
 		return err
 	}
 
-	tmpDepStoreTarPath, err := ioutil.TempDir("", "acbuild-begin-tar")
+	err = os.MkdirAll(a.DepStoreTarPath, 0755)
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(tmpDepStoreTarPath)
-
-	tmpDepStoreExpandedPath, err := ioutil.TempDir("", "acbuild-begin-expanded")
-	if err != nil {
-		return err
-	}
-	defer os.RemoveAll(tmpDepStoreExpandedPath)
 
 	reg := registry.Registry{
-		DepStoreTarPath:      tmpDepStoreTarPath,
-		DepStoreExpandedPath: tmpDepStoreExpandedPath,
+		DepStoreTarPath:      a.DepStoreTarPath,
+		DepStoreExpandedPath: a.DepStoreExpandedPath,
 		Insecure:             insecure,
 		Debug:                a.Debug,
 	}
 
-	err = reg.Fetch(app.Name, labels, 0, false)
+	id, err := reg.Fetch(app.Name, labels, 0, false)
 	if err != nil {
 		if urlerr, ok := err.(*url.Error); ok {
 			if operr, ok := urlerr.Err.(*net.OpError); ok {
@@ -205,22 +198,5 @@ func (a *ACBuild) beginFromRemoteImage(start string, insecure bool) error {
 		return err
 	}
 
-	files, err := ioutil.ReadDir(tmpDepStoreTarPath)
-	if err != nil {
-		return err
-	}
-
-	if len(files) != 1 {
-		var filelist string
-		for _, file := range files {
-			if filelist == "" {
-				filelist = file.Name()
-			} else {
-				filelist = filelist + ", " + file.Name()
-			}
-		}
-		panic("unexpected number of files in store after download: " + filelist)
-	}
-
-	return util.ExtractImage(path.Join(tmpDepStoreTarPath, files[0].Name()), a.CurrentACIPath, nil)
+	return util.ExtractImage(path.Join(a.DepStoreExpandedPath, id), a.CurrentACIPath, nil)
 }
