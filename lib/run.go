@@ -266,18 +266,29 @@ func genDeplist(acipath string, reg registry.Registry) ([]string, error) {
 }
 
 func (a *ACBuild) mirrorLocalZoneInfo() error {
-	zif, err := os.Readlink("/etc/localtime")
-	if err != nil {
+	var localtimefile = "/etc/localtime"
+
+	finfo, err := os.Lstat(localtimefile)
+	switch {
+	case os.IsNotExist(err):
+		return nil
+	case err != nil:
 		return err
+	case finfo.Mode()&os.ModeSymlink == os.ModeSymlink:
+		zif, err := os.Readlink(localtimefile)
+		if err != nil {
+			return err
+		}
+		localtimefile = zif
 	}
 
-	src, err := os.Open(zif)
+	src, err := os.Open(localtimefile)
 	if err != nil {
 		return err
 	}
 	defer src.Close()
 
-	destp := filepath.Join(a.CurrentACIPath, aci.RootfsDir, zif)
+	destp := filepath.Join(a.CurrentACIPath, aci.RootfsDir, localtimefile)
 
 	if err = os.MkdirAll(filepath.Dir(destp), 0755); err != nil {
 		return err
