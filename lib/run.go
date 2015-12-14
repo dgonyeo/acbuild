@@ -18,17 +18,25 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/appc/acbuild/Godeps/_workspace/src/github.com/appc/spec/aci"
+	"github.com/appc/acbuild/Godeps/_workspace/src/github.com/appc/spec/discovery"
+	"github.com/appc/acbuild/Godeps/_workspace/src/github.com/appc/spec/schema/types"
+	"github.com/appc/acbuild/Godeps/_workspace/src/github.com/coreos/rkt/store"
 
-	"github.com/appc/acbuild/registry"
 	"github.com/appc/acbuild/util"
+)
+
+const (
+	acbuildStorePath = "~/.acbuild"
 )
 
 var pathlist = []string{"/usr/local/sbin", "/usr/local/bin", "/usr/sbin",
@@ -64,14 +72,6 @@ func (a *ACBuild) Run(cmd []string, insecure bool) (err error) {
 		return err
 	}
 	defer os.RemoveAll(a.OverlayWorkPath)
-	err = os.MkdirAll(a.DepStoreExpandedPath, 0755)
-	if err != nil {
-		return err
-	}
-	err = os.MkdirAll(a.DepStoreTarPath, 0755)
-	if err != nil {
-		return err
-	}
 
 	man, err := util.GetManifest(a.CurrentACIPath)
 	if err != nil {
@@ -205,74 +205,6 @@ func findCmdInPath(pathlist []string, cmd, prefix string) (string, error) {
 	return "", fmt.Errorf("%s not found in any of: %v", cmd, pathlist)
 }
 
-func (a *ACBuild) renderACI(insecure, debug bool) ([]string, error) {
-	reg := registry.Registry{
-		DepStoreTarPath:      a.DepStoreTarPath,
-		DepStoreExpandedPath: a.DepStoreExpandedPath,
-		Insecure:             insecure,
-		Debug:                debug,
-	}
-
-	man, err := util.GetManifest(a.CurrentACIPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(man.Dependencies) == 0 {
-		return nil, nil
-	}
-
-	var deplist []string
-	for _, dep := range man.Dependencies {
-		err := reg.FetchAndRender(dep.ImageName, dep.Labels, dep.Size)
-		if err != nil {
-			return nil, err
-		}
-
-		depkey, err := reg.GetACI(dep.ImageName, dep.Labels)
-		if err != nil {
-			return nil, err
-		}
-
-		subdeplist, err := genDeplist(path.Join(a.DepStoreExpandedPath, depkey), reg)
-		if err != nil {
-			return nil, err
-		}
-		deplist = append(deplist, subdeplist...)
-	}
-
-	return deplist, nil
-}
-
-func genDeplist(acipath string, reg registry.Registry) ([]string, error) {
-	man, err := util.GetManifest(acipath)
-	if err != nil {
-		return nil, err
-	}
-	key, err := reg.GetACI(man.Name, man.Labels)
-	if err != nil {
-		fmt.Printf("Name: %s", man.Name)
-		return nil, err
-	}
-
-	var deps []string
-	for _, dep := range man.Dependencies {
-		depkey, err := reg.GetACI(dep.ImageName, dep.Labels)
-		if err != nil {
-			return nil, err
-		}
-
-		subdeps, err := genDeplist(path.Join(reg.DepStoreExpandedPath, depkey), reg)
-		if err != nil {
-			return nil, err
-		}
-		deps = append(deps, subdeps...)
-	}
-
-	deps = append(deps, key)
-	return deps, nil
-}
-
 func (a *ACBuild) mirrorLocalZoneInfo() error {
 	zif, err := filepath.EvalSymlinks("/etc/localtime")
 	if err != nil {
@@ -326,4 +258,204 @@ func getSystemdVersion() (int, error) {
 		}
 	}
 	return 0, fmt.Errorf("error parsing output from `systemctl --version`")
+}
+
+func (a *ACBuild) renderACI(insecure, debug bool) ([]string, error) {
+	man, err := util.GetManifest(a.CurrentACIPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(man.Dependencies) == 0 {
+		return nil, nil
+	}
+
+	s, err := store.NewStore(acbuildStorePath)
+	if err != nil {
+		return nil, err
+	}
+
+	var depList []string
+	for _, dep := range man.Dependencies {
+		err := a.fetchACI(s, dep, true)
+		if err != nil {
+			return nil, err
+		}
+		id, _, err := s.RenderTreeStore(key, false)
+		if err != nil {
+			return nil, err
+		}
+		depList = append(depList, s.GetTreeStoreRootFS(id))
+	}
+	return depList, nil
+}
+
+func (a *ACBuild) fetchACI(s *store.Store, aci types.Dependency, fetchDeps bool) error {
+	endpoint, err := a.discoverEndpoint(aci.ImageName, aci.Labels)
+	if err != nil {
+		return err
+	}
+
+	remote, found, err := s.GetRemote(endpoint.ACI)
+	if err != nil {
+		return err
+	}
+	if !found {
+		remote = store.NewRemote(endpoint.ACI, endpoint.ASC)
+	}
+
+	acifile, err := s.aciFile()
+	if err != nil {
+		return err
+	}
+	defer acifile.Close()
+	defer os.Remove(aciFile.Name())
+
+	remote.DownloadTime = time.Now()
+
+	etag, err = a.download(remote.ACIURL, acifile, string(aci.ImageName))
+	if err != nil {
+		return err
+	}
+
+	remote.ETag = etag
+
+	//TODO: download ASC, verify the ACI with it
+
+	_, err = acifile.Seek(0, os.SEEK_SET)
+	if err != nil {
+		return err
+	}
+
+	latest := false
+	if v, ok := labels.Get("version"); !ok || v == "latest" {
+		latest = true
+	}
+
+	key, err := s.WriteACI(acifile, latest)
+	if err != nil {
+		return err
+	}
+
+	remote.BlobKey = key
+
+	err = s.WriteRemote(remote)
+	if err != nil {
+		return err
+	}
+
+	if !fetchDeps {
+		return nil
+	}
+
+	man, err := s.GetImageManifest(key)
+	if err != nil {
+		return err
+	}
+
+	for _, dep := range man.Dependencies {
+		err := a.fetchACIWithDeps(s, dep)
+	}
+
+	return nil
+}
+
+func (a *ACBuild) discoverEndpoint(imgName types.ACIdentifier, labels types.Labels) (*discovery.ACIEndpoint, error) {
+	app, err := discovery.NewApp(string(imageName), labels.ToMap())
+	if err != nil {
+		return nil, err
+	}
+	if _, ok := app.Labels["arch"]; !ok {
+		app.Labels["arch"] = runtime.GOARCH
+	}
+	if _, ok := app.Labels["os"]; !ok {
+		app.Labels["os"] = runtime.GOOS
+	}
+
+	eps, attempts, err := discovery.DiscoverEndpoints(*app, a.Insecure)
+	if err != nil {
+		return nil, err
+	}
+	if len(eps.ACIEndpoints) == 0 {
+		return nil, fmt.Errorf("no endpoints discovered to download %s", imageName)
+	}
+
+	return &eps.ACIEndpoints[0], nil
+}
+
+func (a *ACBuild) download(url string, writer io.Writer, label string) (string, error) {
+	//TODO: auth
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return "", err
+	}
+	transport := http.DefaultTransport
+	if r.Insecure {
+		transport = &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
+	}
+
+	client := &http.Client{Transport: transport}
+	//f.setHTTPHeaders(req, etag)
+
+	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		if len(via) >= 10 {
+			return fmt.Errorf("too many redirects")
+		}
+		//f.setHTTPHeaders(req, etag)
+		return nil
+	}
+
+	res, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer res.Body.Close()
+
+	switch res.StatusCode {
+	case http.StatusOK:
+		break
+	default:
+		return "", fmt.Errorf("bad HTTP status code: %d", res.StatusCode)
+	}
+
+	reader := newIoprogress(label, res.ContentLength, res.Body)
+
+	_, err = io.Copy(writer, reader)
+	if err != nil {
+		return "", fmt.Errorf("error copying %s: %v", label, err)
+	}
+
+	return res.Header.Get("ETag"), nil
+}
+
+func newIoprogress(label string, size int64, rdr io.Reader) io.Reader {
+	prefix := "Downloading " + label
+	fmtBytesSize := 18
+	barSize := int64(80 - len(prefix) - fmtBytesSize)
+	bar := ioprogress.DrawTextFormatBarForW(barSize, os.Stderr)
+	fmtfunc := func(progress, total int64) string {
+		// Content-Length is set to -1 when unknown.
+		if total == -1 {
+			return fmt.Sprintf(
+				"%s: %v of an unknown total size",
+				prefix,
+				ioprogress.ByteUnitStr(progress),
+			)
+		}
+		return fmt.Sprintf(
+			"%s: %s %s",
+			prefix,
+			bar(progress, total),
+			ioprogress.DrawTextFormatBytes(progress, total),
+		)
+	}
+
+	return &ioprogress.Reader{
+		Reader:       rdr,
+		Size:         size,
+		DrawFunc:     ioprogress.DrawTerminalf(os.Stderr, fmtfunc),
+		DrawInterval: time.Second,
+	}
 }

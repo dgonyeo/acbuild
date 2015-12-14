@@ -24,7 +24,6 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/appc/acbuild/registry"
 	"github.com/appc/acbuild/util"
 
 	"github.com/appc/acbuild/Godeps/_workspace/src/github.com/appc/spec/aci"
@@ -216,6 +215,8 @@ func (a *ACBuild) beginFromRemoteImage(start string, insecure bool) error {
 		return err
 	}
 	defer os.RemoveAll(tmpDepStoreExpandedPath)
+
+	For tomorrow: does rkt/store.Store.RenderTreeStore render just the ACI, or all of its dependencies too? 
 
 	reg := registry.Registry{
 		DepStoreTarPath:      tmpDepStoreTarPath,
