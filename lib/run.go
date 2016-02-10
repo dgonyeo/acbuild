@@ -149,6 +149,15 @@ func (a *ACBuild) Run(cmd []string, insecure bool) (err error) {
 	if err != nil {
 		return err
 	}
+
+	_, err = os.Lstat(path.Join(nspawnpath, abscmd))
+	switch {
+	case os.IsNotExist(err):
+		return fmt.Errorf("the binary %q doesn't exist", abscmd)
+	case err != nil:
+		return err
+	}
+
 	nspawncmd = append(nspawncmd, abscmd)
 	nspawncmd = append(nspawncmd, cmd[1:]...)
 
