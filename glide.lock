@@ -1,6 +1,24 @@
-hash: 17dd86642479128024e379ba10c269c5ca718b3511b7f56085aba1fc46cb3b97
-updated: 2016-02-26T15:00:37.647587693-05:00
+hash: 01857b8a3c71f3c108c859486c5dbfcdea9360e5e97887cfa1567e9e346f70c7
+updated: 2016-02-26T15:55:18.934708312-05:00
 imports:
+- name: github.com/appc/acpush
+  version: cd91bd9cfdf3a5b54786351501e82120af684ca1
+  subpackages:
+  - lib
+  - Godeps/_workspace/src/github.com/appc/spec/aci
+  - Godeps/_workspace/src/github.com/appc/spec/discovery
+  - Godeps/_workspace/src/github.com/appc/spec/schema
+  - Godeps/_workspace/src/github.com/coreos/ioprogress
+  - Godeps/_workspace/src/github.com/appc/spec/pkg/tarheader
+  - Godeps/_workspace/src/github.com/appc/spec/schema/types
+  - Godeps/_workspace/src/golang.org/x/net/html
+  - Godeps/_workspace/src/golang.org/x/net/html/atom
+  - Godeps/_workspace/src/golang.org/x/crypto/ssh/terminal
+  - Godeps/_workspace/src/github.com/appc/spec/pkg/device
+  - Godeps/_workspace/src/github.com/coreos/go-semver/semver
+  - Godeps/_workspace/src/k8s.io/kubernetes/pkg/api/resource
+  - Godeps/_workspace/src/github.com/spf13/pflag
+  - Godeps/_workspace/src/speter.net/go/exp/math/dec/inf
 - name: github.com/appc/spec
   version: 0875c991a496fe2b65ed296551c667b199a6bfb8
   subpackages:
