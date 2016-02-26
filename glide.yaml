@@ -1,0 +1,56 @@
+package: github.com/appc/acbuild
+import:
+- package: github.com/appc/spec
+  version: 0875c991a496fe2b65ed296551c667b199a6bfb8
+  subpackages:
+  - aci
+  - discovery
+  - pkg/acirenderer
+  - pkg/device
+  - pkg/tarheader
+  - schema
+- package: github.com/coreos/go-semver
+  version: 6fe83ccda8fb9b7549c9ab4ba47f47858bc950aa
+  subpackages:
+  - semver
+- package: github.com/coreos/ioprogress
+  version: 4637e494fd9b23c5565ee193e89f91fdc1639bc0
+- package: github.com/coreos/rkt
+  version: v1.1.0
+  subpackages:
+  - pkg/fileutil
+  - pkg/multicall
+  - pkg/sys
+  - pkg/tar
+  - pkg/uid
+- package: github.com/inconshreveable/mousetrap
+  version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
+- package: github.com/kylelemons/godebug
+  version: 21cb3784d9bda523911b96719efba02b7e983256
+  subpackages:
+  - diff
+  - pretty
+- package: github.com/spf13/cobra
+  version: 66816bcd0378e248c613e3c443c020f544c28804
+- package: github.com/spf13/pflag
+  version: 67cbc198fd11dab704b214c1e629a97af392c085
+- package: github.com/syndtr/gocapability
+  version: 8e4cdcb3c22b40d5e330ade0b68cb2e2a3cf6f98
+  subpackages:
+  - capability
+- package: golang.org/x/crypto
+  version: a7ead6ddf06233883deca151dffaef2effbf498f
+  subpackages:
+  - ssh/terminal
+- package: golang.org/x/net
+  version: 1dfe7915deaf3f80b962c163b918868d8a6d8974
+  subpackages:
+  - html
+- package: k8s.io/kubernetes
+  version: cf75b0d023e0815160a1a5d66d3375818ee2afe8
+  subpackages:
+  - pkg/api/resource
+- package: speter.net/go/exp/math/dec/inf
+  version: 42ca6cd68aa922bc3f32f1e056e61b65945d9ad7
+- package: xi2.org/x/xz
+  version: 18c6b7129324841d920ee8dc1ab66ec07054998f

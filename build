@@ -6,13 +6,14 @@ REPO_PATH="${ORG_PATH}/acbuild"
 VERSION=$(git describe --dirty)
 GLDFLAGS="-X github.com/appc/acbuild/lib.Version=${VERSION}"
 
+export GO15VENDOREXPERIMENT=1
+
 if [ ! -h gopath/src/${REPO_PATH} ]; then
 	mkdir -p gopath/src/${ORG_PATH}
 	ln -s ../../../.. gopath/src/${REPO_PATH} || exit 255
 fi
 
 export GOBIN=${PWD}/bin
-export GOPATH=${PWD}/gopath
 
 eval $(go env)
 export GOOS GOARCH
@@ -22,6 +23,10 @@ if [ "${GOOS}" = "freebsd" ]; then
     # make it generate proper flavour of code that doesn't emit
     # warnings.
     export CC=clang
+fi
+
+if [ ! -d "vendor" ]; then
+    glide install
 fi
 
 echo "Building acbuild..."

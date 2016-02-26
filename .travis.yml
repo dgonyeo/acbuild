@@ -1,10 +1,12 @@
 language: go
 matrix:
   include:
-    - go: 1.4.2
-    - go: 1.5.1
+    - go: 1.5
+    - go: 1.6
 
 script:
+ - go get github.com/Masterminds/glide
+ - export PATH=$PATH:$GOPATH/bin
  - ./build
  - ./test
 

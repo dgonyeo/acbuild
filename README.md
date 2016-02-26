@@ -41,7 +41,14 @@ The easiest way to get `acbuild` is to download one of the
 
 The other way to get `acbuild` is to build it from source.
 
-Follow these steps to do so:
+Dependency versioning is done with
+[glide](https://github.com/Masterminds/glide), and due to this a prerequisite
+to building acbuild is that the glide binary is on your path. If you have a
+working go setup, the easiest way to do this is to run `go get
+github.com/Masterminds/glide` and then make sure that `$GOPATH/bin` is on your
+path (if it's not, `export PATH=$PATH:$GOPATH/bin`).
+
+Once glide is available, just perform the following steps.
 
 1. Grab the source code for `acbuild` by `git clone`ing the source repository:
    ```

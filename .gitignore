@@ -30,3 +30,4 @@ acbuild/acbuild
 # Used in building acbuild
 gopath/
 bin/
+vendor/
