@@ -1,6 +1,6 @@
 Vagrant.configure('2') do |config|
-    # grab Ubuntu 16.04 official image
-    config.vm.box = "ubuntu/xenial64" # Ubuntu 16.04
+    # grab Fedora 23 image
+    config.vm.box = " fedora/23-cloud-base"
 
     # fix issues with slow dns http://serverfault.com/a/595010
     config.vm.provider :virtualbox do |vb, override|
