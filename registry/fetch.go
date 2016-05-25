@@ -46,6 +46,14 @@ func (r Registry) tmpuncompressedpath() string {
 	return path.Join(r.DepStoreTarPath, "tmp.uncompressed.aci")
 }
 
+func (r Registry) ensureStoreInitialized() error {
+	err := os.MkdirAll(r.DepStoreTarPath, 0755)
+	if err != nil {
+		return err
+	}
+	return os.MkdirAll(r.DepStoreExpandedPath, 0755)
+}
+
 // Fetch will download the given image, and optionally its dependencies, into
 // r.DepStoreTarPath
 func (r Registry) Fetch(imagename types.ACIdentifier, labels types.Labels, size uint, fetchDeps bool) error {
@@ -64,6 +72,7 @@ func (r Registry) Fetch(imagename types.ACIdentifier, labels types.Labels, size 
 // they have not been fetched yet, and will then render them on to the
 // filesystem if they have not been rendered yet.
 func (r Registry) FetchAndRender(imagename types.ACIdentifier, labels types.Labels, size uint) error {
+	r.ensureStoreInitialized()
 	err := r.Fetch(imagename, labels, size, true)
 	if err != nil {
 		return err

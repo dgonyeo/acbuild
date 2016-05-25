@@ -24,6 +24,7 @@ import (
 )
 
 const defaultWorkPath = ".acbuild"
+const defaultStoreDir = "/var/lib/acbuild"
 
 var (
 	// ErrNotFound is returned when acbuild is asked to remove an element from a
@@ -61,13 +62,19 @@ type ACBuild struct {
 
 // NewACBuild returns a new ACBuild struct with sane defaults for all of the
 // different paths
-func NewACBuild(cwd string, debug bool) *ACBuild {
+func NewACBuild(cwd, storeDir string, debug bool) *ACBuild {
+	var storePath string
+	if storeDir != "" {
+		storePath = storeDir
+	} else {
+		storePath = defaultStoreDir
+	}
 	return &ACBuild{
 		ContextPath:          path.Join(cwd, defaultWorkPath),
 		LockPath:             path.Join(cwd, defaultWorkPath, "lock"),
 		CurrentACIPath:       path.Join(cwd, defaultWorkPath, "currentaci"),
-		DepStoreTarPath:      path.Join(cwd, defaultWorkPath, "depstore-tar"),
-		DepStoreExpandedPath: path.Join(cwd, defaultWorkPath, "depstore-expanded"),
+		DepStoreTarPath:      path.Join(storePath, "depstore-tar"),
+		DepStoreExpandedPath: path.Join(storePath, "depstore-expanded"),
 		OverlayTargetPath:    path.Join(cwd, defaultWorkPath, "target"),
 		OverlayWorkPath:      path.Join(cwd, defaultWorkPath, "work"),
 		Debug:                debug,

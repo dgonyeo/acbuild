@@ -80,14 +80,6 @@ func (a *ACBuild) Run(cmd []string, workingDir string, insecure bool, runEngine 
 		return err
 	}
 	defer os.RemoveAll(a.OverlayWorkPath)
-	err = os.MkdirAll(a.DepStoreExpandedPath, 0755)
-	if err != nil {
-		return err
-	}
-	err = os.MkdirAll(a.DepStoreTarPath, 0755)
-	if err != nil {
-		return err
-	}
 
 	man, err := util.GetManifest(a.CurrentACIPath)
 	if err != nil {

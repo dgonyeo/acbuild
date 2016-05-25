@@ -128,3 +128,29 @@ nextkey:
 	}
 	return "", ErrNotFound
 }
+
+// GetAllACIs returns a key for every image in the registry.
+func (r Registry) GetAllACIs() ([]string, error) {
+	files, err := ioutil.ReadDir(r.DepStoreExpandedPath)
+	if err != nil && !os.IsNotExist(err) {
+		return nil, err
+	}
+	keys := make([]string, len(files))
+	for i, f := range files {
+		keys[i] = f.Name()
+	}
+	return keys, nil
+}
+
+func (r Registry) DeleteACI(key string) error {
+	for _, thingToDelete := range []string{
+		path.Join(r.DepStoreExpandedPath, key),
+		path.Join(r.DepStoreTarPath, key),
+	} {
+		err := os.RemoveAll(thingToDelete)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}

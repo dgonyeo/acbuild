@@ -68,6 +68,7 @@ var (
 	contextpath    string
 	aciToModify    string
 	disableHistory bool
+	storeDir       string
 
 	cmdExitCode int
 
@@ -96,12 +97,13 @@ func init() {
 	cmdAcbuild.PersistentFlags().StringVar(&contextpath, "work-path", ".", "Path to place working files in")
 	cmdAcbuild.PersistentFlags().StringVar(&aciToModify, "modify", "", "Path to an ACI to modify (ignores build context)")
 	cmdAcbuild.PersistentFlags().BoolVar(&disableHistory, "no-history", false, "Don't add annotations with the command that was run")
+	cmdAcbuild.PersistentFlags().StringVar(&storeDir, "store", "", "Path to use for acbuild's store (defaults to /var/lib/acbuild)")
 
 	cobra.EnablePrefixMatching = true
 }
 
 func newACBuild() *lib.ACBuild {
-	return lib.NewACBuild(contextpath, debug)
+	return lib.NewACBuild(contextpath, storeDir, debug)
 }
 
 func getErrorCode(err error) int {
@@ -122,6 +124,10 @@ func getErrorCode(err error) int {
 // terminator.
 func runWrapper(cf func(cmd *cobra.Command, args []string) (exit int)) func(cmd *cobra.Command, args []string) {
 	return func(cmd *cobra.Command, args []string) {
+		if cmd.HasParent() && cmd.Parent().Name() == "store" {
+			cmdExitCode = cf(cmd, args)
+			return
+		}
 		if aciToModify == "" {
 			cmdExitCode = cf(cmd, args)
 			switch cmd.Name() {
