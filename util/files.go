@@ -1,4 +1,4 @@
-// Copyright 2015 The appc Authors
+// Copyright 2014 The appc Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import (
 	"github.com/appc/spec/aci"
 	rkttar "github.com/coreos/rkt/pkg/tar"
 	"github.com/coreos/rkt/pkg/user"
+	"github.com/hashicorp/errwrap"
 )
 
 // RmAndMkdir will remove anything at path if it exists, and then create a
@@ -72,5 +73,22 @@ func ExtractImage(path, dst string, fileMap map[string]struct{}) error {
 	if err != nil {
 		return fmt.Errorf("error determining current user: %v", err)
 	}
-	return rkttar.ExtractTarInsecure(tar.NewReader(dr), dst, true, fileMap, editor)
+	err = rkttar.ExtractTarInsecure(tar.NewReader(dr), dst, true, fileMap, editor)
+	wrappedErr, ok := err.(errwrap.Wrapper)
+	if !ok {
+		return err
+	}
+	errs := wrappedErr.WrappedErrors()
+	if len(errs) == 0 {
+		return nil
+	}
+	var errStr string
+	for _, err := range errs {
+		if errStr == "" {
+			errStr = err.Error()
+		} else {
+			errStr += ": " + err.Error()
+		}
+	}
+	return fmt.Errorf(errStr)
 }
